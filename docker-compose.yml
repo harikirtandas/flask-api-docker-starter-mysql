@@ -1,0 +1,53 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "${APP_PORT:-8080}:5000"
+    volumes:
+      - ./src:/app
+    environment:
+      FLASK_DEBUG: ${APP_DEBUG:-1}
+      APP_DEBUG: ${APP_DEBUG:-1}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      JWT_SECRET: ${JWT_SECRET:-cambiame-en-produccion-min-32-caracteres}
+      JWT_TTL_HORAS: ${JWT_TTL_HORAS:-168}
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-app}
+      DB_USERNAME: ${DB_USERNAME:-app}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      EXTERNAL_API_BASE_URL: ${EXTERNAL_API_BASE_URL:-}
+      EXTERNAL_API_KEY_HEADER: ${EXTERNAL_API_KEY_HEADER:-Grupo-Access-Key}
+      EXTERNAL_API_KEY: ${EXTERNAL_API_KEY:-}
+      EXTERNAL_API_CACHE_TTL: ${EXTERNAL_API_CACHE_TTL:-30}
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-app}
+      MYSQL_USER: ${DB_USERNAME:-app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-secret}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  adminer:
+    image: adminer
+    ports:
+      - "${ADMINER_PORT:-8081}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+
+volumes:
+  mysql-data:

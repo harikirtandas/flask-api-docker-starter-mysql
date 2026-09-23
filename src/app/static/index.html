@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>flask-api-docker-starter-mysql</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <h1>flask-api-docker-starter-mysql — demo</h1>
+
+  <section id="vista-auth">
+    <form id="form-login">
+      <h2>Iniciar sesion</h2>
+      <input type="email" name="email" placeholder="Email" value="demo@demo.test" required>
+      <input type="password" name="password" placeholder="Contrasena" value="secret" required>
+      <button type="submit">Entrar</button>
+    </form>
+
+    <form id="form-registro">
+      <h2>Registrarse</h2>
+      <input type="text" name="nombre" placeholder="Nombre" required>
+      <input type="email" name="email" placeholder="Email" required>
+      <input type="password" name="password" placeholder="Contrasena (min 6)" required>
+      <button type="submit">Crear cuenta</button>
+    </form>
+  </section>
+
+  <p id="error-auth" class="error" hidden></p>
+
+  <section id="vista-notas" hidden>
+    <button id="btn-logout">Cerrar sesion</button>
+
+    <h2>Notas</h2>
+    <form id="form-nota">
+      <input type="text" name="titulo" placeholder="Titulo" required>
+      <textarea name="cuerpo" placeholder="Cuerpo"></textarea>
+      <button type="submit">Agregar nota</button>
+    </form>
+
+    <ul id="lista-notas"></ul>
+  </section>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
