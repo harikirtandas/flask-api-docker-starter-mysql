@@ -15,6 +15,23 @@
   de cargar `api.js`. Si cambia `APP_PORT`, hay que actualizar esa linea Y
   `CORS_ORIGIN` (ver bullet de CORS). **Nota de alcance**: este cambio no
   toca los blueprints de `app/routes/` — queda pendiente como paso aparte.
+- **Validacion de body con JSON Schema, no a mano.** Backend:
+  `jsonschema-rs` (bindings Python de un validador Rust) via
+  `app.core.validator.validar(nombre_schema, datos)`, schemas en
+  `src/app/schemas/*.json`. Frontend: Ajv (build de navegador por CDN, sin
+  build step) via `web/js/validar.js`, schemas en `web/schemas/*.json`
+  **copiados a mano** de los del backend (dos proyectos/procesos separados,
+  sin build compartido — si divergen, gana el backend). Ambos traducen los
+  errores de su libreria al mismo `{ campo: mensaje }` de siempre; el
+  contrato de un 422 no cambia. El trim/normalizacion de strings sigue
+  siendo responsabilidad de cada ruta/handler, ANTES de llamar a validar().
+  Gotcha de `jsonschema-rs`: el keyword `required` no trae un
+  `instance_path` util para el campo faltante (apunta al objeto entero) — el
+  nombre sale de `error.kind.as_dict()["property"]`; Ajv tiene el mismo caso
+  via `error.params.missingProperty`. Nueva dependencia de pip:
+  `jsonschema-rs` en `src/requirements.txt` — hace falta rebuildear la imagen
+  (`make install` o `docker compose up -d --build`) para bajarla, un simple
+  `docker compose up` no alcanza.
 - Hermano Python de la familia de starters `php-api-docker-starter-apache-mysql`
   / `php-api-rustica-docker-starter-apache-mysql` / etc. **Mismo contrato de
   error JSON**, mismo Makefile (nombres de targets), mismo esquema de

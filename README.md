@@ -169,6 +169,44 @@ Con `APP_DEBUG=1`, un 500 no controlado incluye `error.debug` con la excepcion
 y el mensaje. En `0`, solo un mensaje generico (y queda logueado igual con
 `current_app.logger.exception`).
 
+## Validacion (JSON Schema)
+
+Los campos de cada request (`register`, `notas`) se validan contra un JSON
+Schema, no a mano campo por campo, con librerias equivalentes de cada lado:
+
+- **Backend**: [`jsonschema-rs`](https://pypi.org/project/jsonschema-rs/)
+  (bindings Python de un validador Rust, rapido). Wrapper:
+  `App.core.validator.validar(nombre_schema, datos)`. Schemas en
+  `src/app/schemas/*.json` (uno por recurso).
+- **Frontend**: [Ajv](https://ajv.js.org/) (build de navegador via CDN, sin
+  build step). Wrapper: `web/js/validar.js` (`Validador.validar(...)`).
+  Schemas en `web/schemas/*.json` — **copias a mano** de los del backend
+  (no hay build compartido entre los dos proyectos/procesos); si divergen,
+  gana el backend, esto solo da feedback instantaneo antes de la ida y
+  vuelta de red.
+
+Ambos lados traducen los errores de su libreria al mismo formato
+`{ campo: mensaje }` de siempre — el contrato de un 422 no cambia:
+
+```python
+# backend
+validar("auth_register", {"nombre": nombre, "email": email, "password": password})
+```
+
+```js
+// frontend, antes de llamar a la API
+const invalido = await Validador.validar('auth_register', { nombre, email, password });
+if (invalido) return mostrarError(errorAuth, invalido);
+```
+
+Un campo ausente dispara `required` (mensaje `"Requerido."`); presente pero
+mal tipado dispara `type`/`minLength`/`maxLength` (mapeo keyword -> texto en
+espanol en `validator.py`/`validar.js`, mantenido igual en los dos lados a
+mano). Detalle no obvio de `jsonschema-rs`: el keyword `required` no da un
+`instance_path` util (apunta al objeto entero, no al campo faltante) — el
+nombre del campo sale de `error.kind.as_dict()["property"]`. Ajv tiene el
+mismo caso, con `error.params.missingProperty`.
+
 ## Autenticacion (JWT)
 
 `app/core/auth.py`:

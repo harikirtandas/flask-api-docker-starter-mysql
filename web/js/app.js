@@ -11,6 +11,7 @@ const formRegistro = $('#form-registro');
 const formNota = $('#form-nota');
 const listaNotas = $('#lista-notas');
 const errorAuth = $('#error-auth');
+const errorNota = $('#error-nota');
 const btnLogout = $('#btn-logout');
 
 function mostrarError(el, err) {
@@ -82,6 +83,12 @@ formRegistro.addEventListener('submit', async (e) => {
   const nombre = formRegistro.nombre.value;
   const email = formRegistro.email.value;
   const password = formRegistro.password.value;
+
+  // Validar en el navegador ANTES de llamar a la API: mismas reglas, sin
+  // esperar la ida y vuelta de red para el error mas comun (campo vacio).
+  const invalido = await Validador.validar('auth_register', { nombre, email, password });
+  if (invalido) return mostrarError(errorAuth, invalido);
+
   try {
     await API.register(nombre, email, password);
     await API.login(email, password);
@@ -99,11 +106,20 @@ btnLogout.addEventListener('click', async () => {
 
 formNota.addEventListener('submit', async (e) => {
   e.preventDefault();
+  ocultarError(errorNota);
   const titulo = formNota.titulo.value;
   const cuerpo = formNota.cuerpo.value;
-  await API.post('/notas', { titulo, cuerpo });
-  formNota.reset();
-  await cargarNotas();
+
+  const invalido = await Validador.validar('notas', { titulo, cuerpo });
+  if (invalido) return mostrarError(errorNota, invalido);
+
+  try {
+    await API.post('/notas', { titulo, cuerpo });
+    formNota.reset();
+    await cargarNotas();
+  } catch (err) {
+    mostrarError(errorNota, err);
+  }
 });
 
 listaNotas.addEventListener('click', async (e) => {
@@ -138,6 +154,9 @@ listaNotas.addEventListener('submit', async (e) => {
   const id = li.dataset.id;
   const titulo = form.querySelector('.edit-titulo').value;
   const cuerpo = form.querySelector('.edit-cuerpo').value;
+
+  const invalido = await Validador.validar('notas', { titulo, cuerpo });
+  if (invalido) return alert(Object.values(invalido.errores).join(' '));
 
   await API.patch(`/notas/${id}`, { titulo, cuerpo });
   await cargarNotas();

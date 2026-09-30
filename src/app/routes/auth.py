@@ -3,6 +3,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.core.auth import generar_token, revocar_token_actual, usuario_actual
 from app.core.errors import ApiException
+from app.core.validator import validar
 from app.models.usuario import Usuario
 
 bp = Blueprint("auth", __name__)
@@ -14,19 +15,14 @@ bp = Blueprint("auth", __name__)
 # proyecto que arranca de este starter.
 @bp.post("/register")
 def register():
-    nombre = (request.get_json(silent=True) or {}).get("nombre", "").strip()
-    email = (request.get_json(silent=True) or {}).get("email", "").strip().lower()
-    password = (request.get_json(silent=True) or {}).get("password", "")
-
-    errores = {}
-    if not nombre:
-        errores["nombre"] = "Requerido."
-    if not email:
-        errores["email"] = "Requerido."
-    if len(password) < 6:
-        errores["password"] = "Minimo 6 caracteres."
-    if errores:
-        raise ApiException.validacion(errores)
+    body = request.get_json(silent=True) or {}
+    datos = {
+        "nombre": str(body.get("nombre", "")).strip(),
+        "email": str(body.get("email", "")).strip().lower(),
+        "password": str(body.get("password", "")),
+    }
+    validar("auth_register", datos)
+    nombre, email, password = datos["nombre"], datos["email"], datos["password"]
 
     if Usuario.por_email(email) is not None:
         raise ApiException.validacion({"email": "Ya existe un usuario con ese email."})

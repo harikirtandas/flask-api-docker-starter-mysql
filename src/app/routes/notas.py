@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 
 from app.core.auth import usuario_actual
 from app.core.errors import ApiException
+from app.core.validator import validar
 from app.models.nota import Nota
 
 bp = Blueprint("notas", __name__)
@@ -13,18 +14,12 @@ bp = Blueprint("notas", __name__)
 
 def _validar_cuerpo() -> tuple[str, str]:
     body = request.get_json(silent=True) or {}
-    titulo = str(body.get("titulo", "")).strip()
-    cuerpo = str(body.get("cuerpo", "")).strip()
-
-    errores = {}
-    if not titulo:
-        errores["titulo"] = "Requerido."
-    elif len(titulo) > 120:
-        errores["titulo"] = "Maximo 120 caracteres."
-    if errores:
-        raise ApiException.validacion(errores)
-
-    return titulo, cuerpo
+    datos = {
+        "titulo": str(body.get("titulo", "")).strip(),
+        "cuerpo": str(body.get("cuerpo", "")).strip(),
+    }
+    validar("notas", datos)
+    return datos["titulo"], datos["cuerpo"]
 
 
 # GET /api/notas

@@ -2,3 +2,4 @@ Flask==3.1.*
 mysql-connector-python==9.*
 PyJWT==2.*
 requests==2.*
+jsonschema-rs==0.*

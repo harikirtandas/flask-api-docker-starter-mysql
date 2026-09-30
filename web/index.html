@@ -36,6 +36,7 @@
       <textarea name="cuerpo" placeholder="Cuerpo"></textarea>
       <button type="submit">Agregar nota</button>
     </form>
+    <p id="error-nota" class="error" hidden></p>
 
     <ul id="lista-notas"></ul>
   </section>
@@ -46,6 +47,11 @@
        si cambia el host/puerto del backend. -->
   <script>window.API_BASE_URL = 'http://localhost:8080/api';</script>
   <script src="/js/api.js"></script>
+  <!-- Ajv (JSON Schema), build de navegador via CDN: sin esto no hay
+       validacion instantanea en el cliente, solo la de la API (mas lenta,
+       necesita ida y vuelta de red). Ver web/js/validar.js. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ajv/8.17.1/ajv7.bundle.min.js"></script>
+  <script src="/js/validar.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>
