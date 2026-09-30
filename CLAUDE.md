@@ -13,8 +13,7 @@
   puede asumir mismo origen (`BASE = '/api'` relativo); lee
   `window.API_BASE_URL`, seteada en un `<script>` de `web/index.html` ANTES
   de cargar `api.js`. Si cambia `APP_PORT`, hay que actualizar esa linea Y
-  `CORS_ORIGIN` (ver bullet de CORS). **Nota de alcance**: este cambio no
-  toca los blueprints de `app/routes/` — queda pendiente como paso aparte.
+  `CORS_ORIGIN` (ver bullet de CORS).
 - **Validacion de body con JSON Schema, no a mano.** Backend:
   `jsonschema-rs` (bindings Python de un validador Rust) via
   `app.core.validator.validar(nombre_schema, datos)`, schemas en
@@ -59,14 +58,28 @@
   zombies) sin beneficio real; es el patron que la propia documentacion de
   Flask recomienda para recursos de request.
 - **`app/__init__.py` es la unica fabrica de la app** (`create_app()`):
-  registra CORS, manejo de errores y los 4 blueprints del slice demo, en ese
-  orden. `wsgi.py` en la raiz de `src/` es el unico entry point (`flask --app
-  wsgi:app run`, ver `docker/Dockerfile`).
-- **Blueprints en vez de un router propio**: a diferencia de los hermanos PHP
-  (que traen `App\Core\Router` hecho a mano porque PHP plano no tiene nada
-  built-in), Flask ya resuelve rutas con parametros tipados (`<int:id_>`) y
-  multiples verbos por regla (`methods=["PUT", "PATCH"]`) sin reinventar nada.
-  No hay equivalente a `Router.php` en este starter a proposito.
+  registra CORS, manejo de errores y llama a `registrar_rutas(app)` de los 4
+  modulos de rutas del slice demo, en ese orden. `wsgi.py` en la raiz de
+  `src/` es el unico entry point (`flask --app wsgi:app run`, ver
+  `docker/Dockerfile`).
+- **Sin Blueprints, a proposito (coincide con lo que se ve en la cursada):**
+  cada modulo de `app/routes/` expone una funcion `registrar_rutas(app)` que
+  `create_app()` llama, registrando las rutas directo sobre el `app` global
+  con `@app.get/post/put/patch/delete(...)` y el path completo (`/api/notas`,
+  no `""` con un `url_prefix` de Blueprint armando el resto). Flask sigue
+  resolviendo parametros tipados (`<int:id_>`) y multiples verbos por regla
+  (`methods=["PUT", "PATCH"]`) sin reinventar nada — eso no cambia, es
+  puramente el mecanismo de registro el que se simplifica. **Gotcha real que
+  motiva la convencion de nombres de abajo**: Flask deriva el nombre de
+  endpoint de `func.__name__` cuando no se pasa `endpoint=`; sin Blueprints
+  (que namespacean cada ruta por su cuenta), dos modulos con una funcion
+  `index`/`show` cada uno pisan el mismo endpoint y `create_app()` explota
+  con `AssertionError: View function mapping is overwriting an existing
+  endpoint function` al arrancar. Por eso `notas.py` y `catalogo.py` (los
+  unicos que de verdad colisionaban entre si) nombran sus vistas
+  `notas_index`/`notas_show` y `catalogo_index`/`catalogo_show`; `ping.py` y
+  `auth.py` no colisionan con nada y conservan sus nombres originales, sin
+  renombrar porque no hace falta.
 - **Guards de auth explicitos, sin decorator/middleware**: cada endpoint
   protegido llama `usuario_actual()` como primera linea del cuerpo de la
   funcion (`app/core/auth.py`), igual que `Auth::usuarioActual($request)` en
@@ -84,7 +97,7 @@
 - **CORS manual (`app/core/cors.py`), sin `flask-cors`**: mismo criterio que
   los hermanos PHP setean los headers a mano en `index.php` en vez de sumar
   una libreria solo para esto. `before_request` corta el preflight `OPTIONS`
-  con 204 antes de tocar cualquier blueprint; `after_request` agrega los
+  con 204 antes de tocar cualquier ruta; `after_request` agrega los
   headers a toda respuesta. `CORS_ORIGIN` ya cumple su funcion real (no es
   cosmetico): `app` y `web` corren en puertos distintos, asi que para el
   navegador son origenes distintos de verdad, default `http://localhost:8082`
@@ -103,7 +116,7 @@
   (`/api/catalogo/<recurso>`), no el dominio real.** Sin
   `EXTERNAL_API_BASE_URL` configurada responde `501` en vez de romper `make
   install` para quien no necesita esta pieza. El comentario al principio del
-  archivo documenta como pasar a dos blueprints concretos con un catalogo real
+  archivo documenta como pasar a dos rutas concretas con un catalogo real
   (solo GET, nunca escritura).
 - **Passwords: `werkzeug.security` (`generate_password_hash` /
   `check_password_hash`), metodo `pbkdf2:sha256` forzado explicitamente.**

@@ -67,32 +67,33 @@ la practica, en `web` — ambos con auto-reload del dev server de Flask
 │   ├── wsgi.py                 # entry point: from app import create_app
 │   ├── config.py               # Config: lee TODO de os.environ, sin secretos hardcodeados
 │   └── app/                    # SOLO la API
-│       ├── __init__.py          # create_app(): registra blueprints, CORS, errores
+│       ├── __init__.py          # create_app(): registra rutas (registrar_rutas), CORS, errores
 │       ├── core/
 │       │   ├── database.py      # conexion mysql-connector-python por request (flask.g)
 │       │   ├── errors.py        # ApiException + manejo central de errores -> JSON
 │       │   ├── cors.py           # headers CORS + preflight OPTIONS
 │       │   ├── auth.py            # JWT: generar_token(), usuario_actual(), revocar_token_actual()
+│       │   ├── validator.py       # validar(nombre_schema, datos) con jsonschema-rs
 │       │   └── external_catalog.py  # cliente generico para catalogos externos de solo lectura
 │       ├── models/                # Usuario, TokenRevocado, Nota  (slice demo)
-│       └── routes/                # blueprints: ping, auth, notas, catalogo  (slice demo)
+│       ├── routes/                # ping, auth, notas, catalogo -- cada uno con registrar_rutas(app)
+│       └── schemas/                # auth_register.json, notas.json (JSON Schema)
 └── web/                         # SOLO el frontend, otro puerto
     ├── requirements.txt          # Flask==3.1.*  (nada de mysql-connector-python/PyJWT)
     ├── wsgi.py                   # app Flask minima: sirve index.html/css/js
     ├── index.html                # cliente demo (login/registro + CRUD de notas)
     ├── css/app.css
+    ├── schemas/                   # copia a mano de src/app/schemas/*.json (validacion en el navegador)
     └── js/
         ├── api.js                # wrapper de fetch, agnostico al dominio
+        ├── validar.js             # wrapper de Ajv, valida contra schemas/*.json antes de llamar a la API
         └── app.js                # cliente demo que usa api.js (descartable)
 ```
-
-**Nota de alcance**: este desacople no toca los blueprints de `app/routes/`
-todavia — es un cambio aparte, pendiente para mas adelante.
 
 ## El slice demo (descartable)
 
 Un vertical slice completo para probar de punta a punta que Flask, el
-autoloading de blueprints, MySQL y la auth JWT funcionan juntos. **En un
+registro de rutas, MySQL y la auth JWT funcionan juntos. **En un
 proyecto real se borra entero** (`Auth` mas alla de `login`/`me` si no aplica,
 `Nota` en `models/`/`routes/`, la tabla de `notas` del schema, y todo `web/`)
 y se reemplaza por el dominio propio. Lo que se conserva es todo `app/core/`.
@@ -158,7 +159,7 @@ coleccion de Bruno que ya sabe leer uno los sabe leer todos):
 }
 ```
 
-Los blueprints tiran `app.core.errors.ApiException` para cortar con un error:
+Las rutas tiran `app.core.errors.ApiException` para cortar con un error:
 
 ```python
 raise ApiException(404, "Nota no encontrada.")
@@ -246,9 +247,9 @@ en vez de romper `make install` para quien no necesita esta pieza. Maneja
 cual al cliente propio, y loguea cualquier error de conexion.
 
 Para un proyecto real con dos catalogos concretos (ej. `/lenguajes` y
-`/tecnologias`), lo mas simple es un blueprint por catalogo, cada uno con
-**solo** el verbo `GET`, usando esta misma clase — ver el comentario al
-principio de `app/routes/catalogo.py`.
+`/tecnologias`), lo mas simple es una ruta por catalogo dentro de
+`registrar_rutas(app)`, cada una con **solo** el verbo `GET`, usando esta
+misma clase — ver el comentario al principio de `app/routes/catalogo.py`.
 
 ## CORS
 
@@ -256,7 +257,7 @@ Backend (`app`, puerto `APP_PORT`) y frontend (`web`, puerto `WEB_PORT`) son
 dos origenes distintos para el navegador (mismo host, pero **puerto**
 distinto ya cuenta como otro origen). `app/core/cors.py` agrega los headers
 CORS a toda respuesta y contesta el preflight `OPTIONS` con 204 antes de
-llegar a cualquier blueprint. El origen permitido sale de `CORS_ORIGIN`, que
+llegar a cualquier ruta. El origen permitido sale de `CORS_ORIGIN`, que
 **hay que mantener sincronizado con `WEB_PORT`** (default
 `http://localhost:8082`); si cambia uno, cambia el otro. Nota: esto es
 puramente para el navegador — un cliente movil (Android) no aplica politica

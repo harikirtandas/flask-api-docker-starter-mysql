@@ -8,21 +8,22 @@ from app.core.cors import register_cors
 
 
 def create_app():
-    app = Flask(__name__)
+    # static_folder=None: esta app es solo API, no sirve nada de HTML/JS/CSS
+    # (eso vive en ../web/, otro proceso/puerto). Sin esto, Flask registra
+    # igual una ruta /static/<path:filename> por default, apuntando a una
+    # carpeta que ya no existe.
+    app = Flask(__name__, static_folder=None)
     app.config.from_object(Config)
 
     register_cors(app)
     register_error_handlers(app)
     app.teardown_appcontext(close_db)
 
-    from app.routes.ping import bp as ping_bp
-    from app.routes.auth import bp as auth_bp
-    from app.routes.notas import bp as notas_bp
-    from app.routes.catalogo import bp as catalogo_bp
+    from app.routes import ping, auth, notas, catalogo
 
-    app.register_blueprint(ping_bp, url_prefix="/api")
-    app.register_blueprint(auth_bp, url_prefix="/api/auth")
-    app.register_blueprint(notas_bp, url_prefix="/api/notas")
-    app.register_blueprint(catalogo_bp, url_prefix="/api/catalogo")
+    ping.registrar_rutas(app)
+    auth.registrar_rutas(app)
+    notas.registrar_rutas(app)
+    catalogo.registrar_rutas(app)
 
     return app
