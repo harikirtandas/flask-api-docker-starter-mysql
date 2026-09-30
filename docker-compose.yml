@@ -10,7 +10,10 @@ services:
     environment:
       FLASK_DEBUG: ${APP_DEBUG:-1}
       APP_DEBUG: ${APP_DEBUG:-1}
-      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      # Origen del servicio `web` (abajo). Es la unica URL que puede llamar a
+      # esta API desde un navegador; una app movil no pasa por CORS y no le
+      # afecta este valor. Si cambia WEB_PORT, hay que actualizar esto tambien.
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8082}
       JWT_SECRET: ${JWT_SECRET:-cambiame-en-produccion-min-32-caracteres}
       JWT_TTL_HORAS: ${JWT_TTL_HORAS:-168}
       DB_HOST: mysql
@@ -25,6 +28,27 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+
+  # Frontend estatico, desacoplado del backend a proposito: corre en su
+  # propio contenedor y puerto (otro origen para el navegador), y solo se
+  # comunica con `app` por HTTP via fetch (ver web/js/api.js). No comparte
+  # proceso ni puerto con la API.
+  #
+  # App Flask minima, no nginx: no es un servidor puramente estatico, es una
+  # app "dinamica" de verdad (aunque hoy solo sirva los archivos de web/) que
+  # puede crecer con rutas/templates propias en una fase futura.
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    ports:
+      - "${WEB_PORT:-8082}:5000"
+    volumes:
+      - ./web:/app
+    environment:
+      FLASK_DEBUG: ${APP_DEBUG:-1}
+    depends_on:
+      - app
 
   mysql:
     image: mysql:8

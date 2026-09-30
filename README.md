@@ -11,6 +11,11 @@ sobre el mismo esqueleto Docker/Makefile), pero con autenticacion por **JWT**
 en vez de token opaco, y un cliente generico para consumir catalogos externos
 de solo lectura.
 
+**Backend y frontend corren en servicios/puertos separados**, a proposito: la
+API (`app`) no sirve nada de HTML/JS, y el cliente demo vive en `web/`,
+corrido por una app Flask minima aparte. La unica comunicacion entre ambos es
+HTTP contra la API (ver "Arquitectura" y "CORS" mas abajo).
+
 ## Requisitos
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (o Docker Engine + Compose plugin) corriendo.
@@ -26,7 +31,8 @@ make install
 
 Al terminar:
 
-- API + cliente demo -> **http://localhost:8080**
+- API -> **http://localhost:8080**
+- Cliente demo (`web/`, otro contenedor/puerto) -> **http://localhost:8082**
 - Adminer (cliente web de MySQL) -> **http://localhost:8081**
 
 A diferencia del hermano PHP, aca no hace falta un paso de instalacion aparte
@@ -36,61 +42,76 @@ instalan **durante el build de la imagen**, no en un volumen bind-mounteado.
 
 ## Arquitectura
 
-Un solo contenedor de aplicacion (`python:3.12-slim` + Flask) mas MySQL y Adminer:
+**Backend y frontend son dos servicios Docker independientes**, cada uno con
+su propio puerto, comunicados solo por HTTP contra la API. A eso se suman
+MySQL y Adminer:
 
-| Servicio | Imagen | Rol |
-|---|---|---|
-| `app` | build propio, `python:3.12-slim` | Flask (servidor de desarrollo) escuchando en :5000. Publica `APP_PORT` (default 8080). |
-| `mysql` | `mysql:8` | Base de datos, volumen persistente `mysql-data` + healthcheck. |
-| `adminer` | `adminer` | Cliente web de MySQL, publica `ADMINER_PORT` (default 8081). |
+| Servicio  | Imagen                           | Rol                                                                                    |
+| --------- | -------------------------------- | -------------------------------------------------------------------------------------- |
+| `app`     | build propio, `python:3.12-slim` | Solo API: Flask (servidor de desarrollo) escuchando en :5000. Publica `APP_PORT` (default 8080). |
+| `web`     | build propio, `python:3.12-slim` | Cliente demo (`web/`): una app Flask minima que sirve `index.html`/`css/`/`js/`. No es un servidor puramente estatico (no hace falta nginx) — es Flask de verdad, lista para crecer con rutas/templates propias mas adelante. Publica `WEB_PORT` (default 8082). |
+| `mysql`   | `mysql:8`                        | Base de datos, volumen persistente `mysql-data` + healthcheck.                         |
+| `adminer` | `adminer`                        | Cliente web de MySQL, publica `ADMINER_PORT` (default 8081).                           |
 
-`./src` se monta como bind mount en `app`: editar el codigo se refleja al
-instante (el dev server de Flask hace auto-reload con `FLASK_DEBUG=1`).
+`./src` se monta como bind mount en `app`, y ya **no tiene ningun archivo de
+frontend adentro** (se movio a `web/`). `./web` se monta, de solo lectura en
+la practica, en `web` — ambos con auto-reload del dev server de Flask
+(`FLASK_DEBUG=1`).
 
-## Estructura de `src/`
+## Estructura del repo
 
 ```
-src/
-├── requirements.txt
-├── wsgi.py                     # entry point: from app import create_app
-├── config.py                   # Config: lee TODO de os.environ, sin secretos hardcodeados
-└── app/
-    ├── __init__.py              # create_app(): registra blueprints, CORS, errores
-    ├── core/
-    │   ├── database.py          # conexion mysql-connector-python por request (flask.g)
-    │   ├── errors.py            # ApiException + manejo central de errores -> JSON
-    │   ├── cors.py               # headers CORS + preflight OPTIONS
-    │   ├── auth.py                # JWT: generar_token(), usuario_actual(), revocar_token_actual()
-    │   └── external_catalog.py    # cliente generico para catalogos externos de solo lectura
-    ├── models/                    # Usuario, TokenRevocado, Nota  (slice demo)
-    ├── routes/                    # blueprints: ping, auth, notas, catalogo  (slice demo)
-    └── static/                    # cliente demo en JS vanilla (index.html, css/, js/)
+.
+├── src/
+│   ├── requirements.txt
+│   ├── wsgi.py                 # entry point: from app import create_app
+│   ├── config.py               # Config: lee TODO de os.environ, sin secretos hardcodeados
+│   └── app/                    # SOLO la API
+│       ├── __init__.py          # create_app(): registra blueprints, CORS, errores
+│       ├── core/
+│       │   ├── database.py      # conexion mysql-connector-python por request (flask.g)
+│       │   ├── errors.py        # ApiException + manejo central de errores -> JSON
+│       │   ├── cors.py           # headers CORS + preflight OPTIONS
+│       │   ├── auth.py            # JWT: generar_token(), usuario_actual(), revocar_token_actual()
+│       │   └── external_catalog.py  # cliente generico para catalogos externos de solo lectura
+│       ├── models/                # Usuario, TokenRevocado, Nota  (slice demo)
+│       └── routes/                # blueprints: ping, auth, notas, catalogo  (slice demo)
+└── web/                         # SOLO el frontend, otro puerto
+    ├── requirements.txt          # Flask==3.1.*  (nada de mysql-connector-python/PyJWT)
+    ├── wsgi.py                   # app Flask minima: sirve index.html/css/js
+    ├── index.html                # cliente demo (login/registro + CRUD de notas)
+    ├── css/app.css
+    └── js/
+        ├── api.js                # wrapper de fetch, agnostico al dominio
+        └── app.js                # cliente demo que usa api.js (descartable)
 ```
+
+**Nota de alcance**: este desacople no toca los blueprints de `app/routes/`
+todavia — es un cambio aparte, pendiente para mas adelante.
 
 ## El slice demo (descartable)
 
 Un vertical slice completo para probar de punta a punta que Flask, el
 autoloading de blueprints, MySQL y la auth JWT funcionan juntos. **En un
 proyecto real se borra entero** (`Auth` mas alla de `login`/`me` si no aplica,
-`Nota` en `models/`/`routes/`, la tabla de `notas` del schema, y
-`static/index.html` + `static/js/*`) y se reemplaza por el dominio propio. Lo
-que se conserva es todo `app/core/`.
+`Nota` en `models/`/`routes/`, la tabla de `notas` del schema, y todo `web/`)
+y se reemplaza por el dominio propio. Lo que se conserva es todo `app/core/`.
 
-| Metodo | Ruta | Auth | Que hace |
-|---|---|---|---|
-| `GET` | `/api/ping` | no | `{ "pong": true, "hora": ... }` |
-| `GET` | `/api/health/db` | no | `SELECT 1` contra MySQL |
-| `POST` | `/api/auth/register` | no | `{ nombre, email, password }` -> 201 usuario |
-| `POST` | `/api/auth/login` | no | `{ email, password }` -> `{ token, expira, usuario }` |
-| `GET` | `/api/auth/me` | si | usuario dueno del token |
-| `POST` | `/api/auth/logout` | si | revoca el token (204) |
-| `GET` | `/api/notas` | si | lista las notas del usuario |
-| `POST` | `/api/notas` | si | `{ titulo, cuerpo }` -> 201 + `Location` |
-| `GET` | `/api/notas/{id}` | si | una nota |
-| `PUT`/`PATCH` | `/api/notas/{id}` | si | reemplaza -> 200 |
-| `DELETE` | `/api/notas/{id}` | si | -> 204 |
-| `GET` | `/api/catalogo/{recurso}` | no | proxy de juguete hacia `EXTERNAL_API_BASE_URL/{recurso}` |
-| `GET` | `/api/catalogo/{recurso}/{id}` | no | idem, por id |
+| Metodo        | Ruta                           | Auth | Que hace                                                 |
+| ------------- | ------------------------------ | ---- | -------------------------------------------------------- |
+| `GET`         | `/api/ping`                    | no   | `{ "pong": true, "hora": ... }`                          |
+| `GET`         | `/api/health/db`               | no   | `SELECT 1` contra MySQL                                  |
+| `POST`        | `/api/auth/register`           | no   | `{ nombre, email, password }` -> 201 usuario             |
+| `POST`        | `/api/auth/login`              | no   | `{ email, password }` -> `{ token, expira, usuario }`    |
+| `GET`         | `/api/auth/me`                 | si   | usuario dueno del token                                  |
+| `POST`        | `/api/auth/logout`             | si   | revoca el token (204)                                    |
+| `GET`         | `/api/notas`                   | si   | lista las notas del usuario                              |
+| `POST`        | `/api/notas`                   | si   | `{ titulo, cuerpo }` -> 201 + `Location`                 |
+| `GET`         | `/api/notas/{id}`              | si   | una nota                                                 |
+| `PUT`/`PATCH` | `/api/notas/{id}`              | si   | reemplaza -> 200                                         |
+| `DELETE`      | `/api/notas/{id}`              | si   | -> 204                                                   |
+| `GET`         | `/api/catalogo/{recurso}`      | no   | proxy de juguete hacia `EXTERNAL_API_BASE_URL/{recurso}` |
+| `GET`         | `/api/catalogo/{recurso}/{id}` | no   | idem, por id                                             |
 
 Usuario demo: **`demo@demo.test` / `secret`**.
 
@@ -128,7 +149,13 @@ Mismo contrato de error que los hermanos PHP, a proposito (un cliente o una
 coleccion de Bruno que ya sabe leer uno los sabe leer todos):
 
 ```json
-{ "error": { "status": 422, "mensaje": "Datos invalidos.", "errores": { "email": "Formato invalido" } } }
+{
+  "error": {
+    "status": 422,
+    "mensaje": "Datos invalidos.",
+    "errores": { "email": "Formato invalido" }
+  }
+}
 ```
 
 Los blueprints tiran `app.core.errors.ApiException` para cortar con un error:
@@ -187,10 +214,15 @@ principio de `app/routes/catalogo.py`.
 
 ## CORS
 
-`app/core/cors.py` agrega los headers CORS a toda respuesta y contesta el
-preflight `OPTIONS` con 204 antes de llegar a cualquier blueprint. El origen
-permitido sale de `CORS_ORIGIN` (default `*` para desarrollo; en produccion,
-el dominio del frontend).
+Backend (`app`, puerto `APP_PORT`) y frontend (`web`, puerto `WEB_PORT`) son
+dos origenes distintos para el navegador (mismo host, pero **puerto**
+distinto ya cuenta como otro origen). `app/core/cors.py` agrega los headers
+CORS a toda respuesta y contesta el preflight `OPTIONS` con 204 antes de
+llegar a cualquier blueprint. El origen permitido sale de `CORS_ORIGIN`, que
+**hay que mantener sincronizado con `WEB_PORT`** (default
+`http://localhost:8082`); si cambia uno, cambia el otro. Nota: esto es
+puramente para el navegador — un cliente movil (Android) no aplica politica
+de mismo origen y no le afecta este valor.
 
 ## Configuracion
 
@@ -199,9 +231,10 @@ Todo se lee de variables de entorno (`config.py`, inyectadas por
 
 ```bash
 APP_PORT=8080
+WEB_PORT=8082
 ADMINER_PORT=8081
 APP_DEBUG=1
-CORS_ORIGIN=*
+CORS_ORIGIN=http://localhost:8082
 JWT_SECRET=cambiame-en-produccion-min-32-caracteres
 JWT_TTL_HORAS=168
 DB_DATABASE=app
@@ -216,18 +249,22 @@ EXTERNAL_API_CACHE_TTL=30
 Para overridear cualquiera de estas, crear un `.env` en la raiz del proyecto
 (gitignoreado) — `docker-compose.yml` ya tiene fallbacks para todas.
 
+Si cambia `APP_PORT`, hay que actualizar tambien la linea
+`window.API_BASE_URL = ...` en `web/index.html` — es la unica que conecta el
+cliente demo con la API.
+
 ## Comandos (Makefile)
 
-| Comando | Que hace |
-|---|---|
-| `make install` | Levanta los tres contenedores (rebuildea la imagen si hace falta). Una sola vez por proyecto, o cuando cambia `requirements.txt`. |
-| `make up` / `make down` | Levanta / apaga. `down` **no borra datos**. |
-| `make restart` | Reinicia sin rebuildear. |
-| `make shell` | `bash` dentro del contenedor `app`. |
-| `make db-shell` | Cliente `mysql` conectado a la base del proyecto. |
-| `make logs` | Sigue los logs. |
-| `make db-import FILE=x.sql` | Aplica un `.sql` a la base ya corriendo, sin recrear el volumen. |
-| `make fresh` | Borra `mysql-data` y reaplica `docker/mysql/init/*.sql`. Pide confirmacion. |
+| Comando                           | Que hace                                                                                                                           |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `make install`                    | Levanta los cuatro contenedores (`app`, `web`, `mysql`, `adminer`), rebuildeando las imagenes si hace falta. Una sola vez por proyecto, o cuando cambia algun `requirements.txt`.  |
+| `make up` / `make down`           | Levanta / apaga. `down` **no borra datos**.                                                                                        |
+| `make restart`                    | Reinicia sin rebuildear.                                                                                                           |
+| `make shell`                      | `bash` dentro del contenedor `app`.                                                                                                |
+| `make db-shell`                   | Cliente `mysql` conectado a la base del proyecto.                                                                                  |
+| `make logs`                       | Sigue los logs.                                                                                                                    |
+| `make db-import FILE=x.sql`       | Aplica un `.sql` a la base ya corriendo, sin recrear el volumen.                                                                   |
+| `make fresh`                      | Borra `mysql-data` y reaplica `docker/mysql/init/*.sql`. Pide confirmacion.                                                        |
 | `make pip CMD="install requests"` | pip dentro del contenedor corriendo (para probar rapido; sumarlo a `requirements.txt` y `make install` para que quede permanente). |
 
 ## Agregar tablas sin perder datos
@@ -244,8 +281,8 @@ sumar una tabla a un proyecto con datos ya cargados:
 1. `gh repo create mi-api --template harikirtandas/flask-api-docker-starter-mysql --private --clone && cd mi-api`
 2. Reemplazar `docker/mysql/init/01-schema.sql` por el schema real.
 3. Borrar el slice demo: `Nota` en `models/`/`routes/`, la ruta demo de
-   `catalogo.py` (o adaptarla a los dos catalogos reales), `static/index.html`
-   + `static/js/*` + `static/css/*`. `register`/`login`/`me`/`logout` de
-   `auth.py` suelen quedar, adaptados a las columnas reales de `usuarios`.
+   `catalogo.py` (o adaptarla a los dos catalogos reales), y todo `web/`.
+   `register`/`login`/`me`/`logout` de `auth.py` suelen quedar, adaptados a
+   las columnas reales de `usuarios`.
 4. Conservar todo `app/core/`.
 5. `make install`.

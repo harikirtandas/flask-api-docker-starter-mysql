@@ -1,0 +1,17 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY web/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# el codigo real llega por el bind mount (./web:/app en docker-compose): esto
+# es solo para que la imagen tenga algo copiado si se corre sin el mount.
+COPY web/ .
+
+EXPOSE 5000
+
+# servidor de desarrollo de Flask, igual criterio que docker/Dockerfile: este
+# proceso solo sirve los archivos de web/, ninguna dependencia con MySQL ni
+# con la API mas alla de la URL que usa api.js desde el navegador.
+CMD ["flask", "--app", "wsgi:app", "run", "--host=0.0.0.0", "--port=5000"]

@@ -4,7 +4,11 @@
 // (api.js de php-api-docker-starter-apache-mysql-cliente-js): agnostico al
 // dominio, se puede llevar a un proyecto real tal cual.
 const API = (() => {
-  const BASE = '/api';
+  // La API corre en su propio contenedor/puerto, separado del que sirve
+  // este HTML, a proposito (backend y frontend independientes). index.html
+  // define window.API_BASE_URL en un <script> ANTES de cargar este archivo;
+  // si no esta definida, cae a '/api' relativo como fallback de emergencia.
+  const BASE = window.API_BASE_URL || '/api';
   let token = localStorage.getItem('token') || null;
 
   function setToken(t) {

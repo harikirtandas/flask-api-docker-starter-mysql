@@ -3,7 +3,8 @@
 install:
 	@mkdir -p docker/mysql/init
 	docker compose up -d --build
-	@echo "App     -> http://localhost:$${APP_PORT:-8080}"
+	@echo "API     -> http://localhost:$${APP_PORT:-8080}"
+	@echo "Web     -> http://localhost:$${WEB_PORT:-8082}"
 	@echo "Adminer -> http://localhost:$${ADMINER_PORT:-8081}"
 
 up:

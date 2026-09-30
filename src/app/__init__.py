@@ -8,19 +8,12 @@ from app.core.cors import register_cors
 
 
 def create_app():
-    app = Flask(__name__, static_folder="static", static_url_path="")
+    app = Flask(__name__)
     app.config.from_object(Config)
 
     register_cors(app)
     register_error_handlers(app)
     app.teardown_appcontext(close_db)
-
-    # Flask solo mapea static_folder a partir de "/<path:filename>": una
-    # request a "/" no matchea eso (filename quedaria vacio), asi que el
-    # cliente demo necesita esta ruta explicita para servir su index.html.
-    @app.get("/")
-    def index():
-        return app.send_static_file("index.html")
 
     from app.routes.ping import bp as ping_bp
     from app.routes.auth import bp as auth_bp

@@ -1,5 +1,20 @@
 # flask-api-docker-starter-mysql
 
+- **Backend y frontend corren en servicios/puertos separados, a proposito**:
+  `app` (la API) ya no sirve nada de HTML/JS/CSS — eso se movio a `web/`
+  (fuera de `src/`), corrido por una app Flask minima aparte, en su propio
+  contenedor/puerto (`WEB_PORT`, default 8082). Motivo: backend y frontend
+  deben poder ejecutarse, deployarse y escalar de forma independiente, con la
+  API como unico medio de comunicacion — antes, Flask servia `static/` y la
+  API desde el mismo puerto. No es nginx: es una app Flask de verdad (por eso
+  "dinamica" y no un servidor puramente estatico), aunque hoy solo sirva los
+  archivos de `web/` tal cual — placeholder para crecer con rutas/templates
+  propias en una fase futura. Consecuencia directa: `web/js/api.js` ya NO
+  puede asumir mismo origen (`BASE = '/api'` relativo); lee
+  `window.API_BASE_URL`, seteada en un `<script>` de `web/index.html` ANTES
+  de cargar `api.js`. Si cambia `APP_PORT`, hay que actualizar esa linea Y
+  `CORS_ORIGIN` (ver bullet de CORS). **Nota de alcance**: este cambio no
+  toca los blueprints de `app/routes/` — queda pendiente como paso aparte.
 - Hermano Python de la familia de starters `php-api-docker-starter-apache-mysql`
   / `php-api-rustica-docker-starter-apache-mysql` / etc. **Mismo contrato de
   error JSON**, mismo Makefile (nombres de targets), mismo esquema de
@@ -53,7 +68,10 @@
   los hermanos PHP setean los headers a mano en `index.php` en vez de sumar
   una libreria solo para esto. `before_request` corta el preflight `OPTIONS`
   con 204 antes de tocar cualquier blueprint; `after_request` agrega los
-  headers a toda respuesta.
+  headers a toda respuesta. `CORS_ORIGIN` ya cumple su funcion real (no es
+  cosmetico): `app` y `web` corren en puertos distintos, asi que para el
+  navegador son origenes distintos de verdad, default `http://localhost:8082`
+  (el puerto de `web`).
 - **`app/core/external_catalog.py` (`ExternalCatalogClient`) es la pieza
   nueva sin equivalente en los hermanos PHP**: cliente generico y reusable
   para consumir un catalogo externo de solo lectura protegido por header de
@@ -92,6 +110,7 @@
   health/db), `auth.py` (`register`/`login`/`me`/`logout`) + `Usuario` +
   `TokenRevocado`, `notas.py` + `Nota` (CRUD con los 5 verbos, filtrado por
   usuario), el schema `01-schema.sql` (`usuarios`/`tokens_revocados`/`notas` +
-  usuario demo `demo@demo.test`/`secret`), y el cliente
-  `static/index.html` + `static/js/*` + `static/css/*`. En un proyecto real se
-  borra entero; se conserva `app/core/`.
+  usuario demo `demo@demo.test`/`secret`), y el cliente demo, que ahora vive
+  entero en `web/` (fuera de `src/`, otro servicio/puerto — ver primer bullet
+  de este archivo). En un proyecto real se borra entero; se conserva
+  `app/core/`.

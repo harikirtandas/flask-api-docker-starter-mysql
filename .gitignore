@@ -4,5 +4,9 @@ src/**/__pycache__/
 src/*.egg-info/
 src/venv/
 src/.venv/
+web/__pycache__/
+web/**/__pycache__/
+web/venv/
+web/.venv/
 dumps/
 .DS_Store
